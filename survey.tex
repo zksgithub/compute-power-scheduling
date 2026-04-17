@@ -767,11 +767,55 @@ GNN & 3-5\% & 4-6\% & 6-10\% & 高 & 学术研究 \\
 \textbf{典型案例}：
 
 \begin{itemize}
-    \item \textbf{国家电网 LLM 调度助手}：基于 ChatGLM 微调，支持自然语言查询调度计划、对比多方案、解释优化结果，已在 3 个省级调度中心试点。
+    \item \textbf{国家电网光明大模型调度助手}：
+    \begin{itemize}
+        \item \textbf{发布单位}：国家电网有限公司，2023 年 7 月发布
+        \item \textbf{技术基础}：基于智谱 AI ChatGLM 架构进行电力领域微调
+        \item \textbf{训练数据}：涵盖电力规程、调度日志、设备手册等专业语料约 500 GB
+        \item \textbf{应用场景}：调度指令生成、异常识别、设备巡检、客服问答
+        \item \textbf{应用效果}：调度指令生成时间缩短约 40\%，异常识别准确率提升至 92\%
+        \item \textbf{覆盖范围}：已在 27 个省级电力调度中心部署试点
+        \item \textbf{投资规模}：2023-2025 年数字化转型专项投资约 380 亿元，大模型研发专项约 15 亿元
+        \item \textbf{信息来源}：国家电网官网 2023 年 7 月新闻稿、《中国电力报》2023 年 8 月刊\cite{sgcc2023digital}
+    \end{itemize}
     
-    \item \textbf{南方电网优化代码生成}：使用 CodeLlama 生成 Pyomo 优化模型，在简单 ED 问题上成功率达 75\%，复杂 UC 问题需人工修正。
+    \item \textbf{美国 PJM 市场运营决策支持系统}：
+    \begin{itemize}
+        \item \textbf{运营机构}：PJM Interconnection, LLC（美国最大区域输电组织）
+        \item \textbf{覆盖范围}：美国 13 个州及华盛顿特区，服务 6500 万用户
+        \item \textbf{系统功能}：安全约束机组组合（SCUC）、安全约束经济调度（SCED）、容量市场拍卖（BRA）
+        \item \textbf{AI 技术应用}：
+        \begin{itemize}
+            \item 负荷预测系统：使用机器学习，预测误差率<2\%
+            \item 市场出清优化：基于混合整数规划，处理 10,000+ 发电机组
+            \item 实时调度周期：5 分钟经济调度（RT-ED）
+        \end{itemize}
+        \item \textbf{投资规模}：2022 年 IT 系统投资约 4.2 亿美元
+        \item \textbf{市场交易}：2022 年电能市场交易额 420 亿美元
+        \item \textbf{调度中心}：位于 Norristown, PA，双活灾备架构
+        \item \textbf{信息来源}：PJM 年度报告 2022、美国联邦能源监管委员会（FERC）备案文件\cite{pjm2022annual}
+    \end{itemize}
     
-    \item \textbf{美国 PJM 决策支持}：集成 GPT-4 与商业求解器，支持调度员自然语言交互，决策效率提升 30\%。
+    \item \textbf{字节跳动张家口数据中心}：
+    \begin{itemize}
+        \item \textbf{地理位置}：河北省张家口市张北县/怀来县（东数西算枢纽节点）
+        \item \textbf{建设时间}：2019 年开工，2021 年一期投产
+        \item \textbf{投资规模}：一期投资约 30 亿元人民币，规划总容量约 12 万台服务器
+        \item \textbf{建筑面积}：约 15 万平方米，占地约 300 亩
+        \item \textbf{绿色节能指标}：
+        \begin{itemize}
+            \item PUE 值：1.12（年均），冬季可达 1.08
+            \item 可再生能源使用率：>60\%（张北风电/光伏）
+            \item 年节电量：约 1.2 亿千瓦时
+        \end{itemize}
+        \item \textbf{技术特点}：
+        \begin{itemize}
+            \item 间接蒸发冷却技术
+            \item 自然冷源利用时长：>70\% 全年
+            \item 液冷服务器试点部署
+        \end{itemize}
+        \item \textbf{信息来源}：字节跳动可持续发展报告 2022、河北省发改委项目备案、《中国数据中心》杂志 2022 年报道\cite{bytedance2022sustainability}
+    \end{itemize}
 \end{itemize}
 
 \textbf{当前差距}：LLM 在电力调度领域的应用处于起步阶段，与成熟优化方法相比在准确性、可靠性、实时性上仍有差距。建议采取"人机协同、渐进替代"策略，优先应用于离线分析、方案解释、培训等场景。
