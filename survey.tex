@@ -886,7 +886,262 @@ Kaggle 家庭用电 & 家庭用户 & 2012-2014 (2 年) & 小时级 & Kaggle \\
 
 \textbf{信息来源}：国家电网官网、新华社、人民日报、科技日报、中国电机工程学报\cite{sgcc2023guangming,sgcc2024power,xinhua2023sgcc,people2023sgcc,sci2024sgcc}。
 
-\textbf{概念定义}：跨域算力协同调度是指在多个地理分布的数据中心之间调度算力任务，实现资源的全局优化。"东数西算"战略下，跨域调度成为研究热点\cite{dong2022east}。
+\subsection{算力 - 电力协同优化建模框架}
+
+算力 - 电力协同调度本质上是一个多目标、多约束、多时间尺度的优化问题。本节从理想模型入手，逐步迭代到真实场景，系统阐述优化建模方法。
+
+\subsubsection{理想模型：单数据中心基础优化}
+
+\textbf{优化目标}：
+
+\begin{equation}
+\min \sum_{t=1}^{T} \left[ c_e(t) \cdot P_{\text{grid}}(t) + c_c(t) \cdot C(t) + c_q \cdot Q(t) \right]
+\label{eq:obj-basic}
+\end{equation}
+
+其中：
+\begin{itemize}
+    \item $c_e(t)$：$t$ 时段电价（元/kWh）
+    \item $P_{\text{grid}}(t)$：$t$ 时段从电网购电量（kWh）
+    \item $c_c(t)$：$t$ 时段碳价（元/kgCO₂）
+    \item $C(t)$：$t$ 时段碳排放量（kgCO₂）
+    \item $c_q$：QoS 惩罚系数
+    \item $Q(t)$：$t$ 时段 QoS 违约量（如任务延迟）
+\end{itemize}
+
+\textbf{约束条件}：
+
+\begin{enumerate}
+    \item \textbf{功率平衡约束}：
+    \begin{equation}
+    P_{\text{grid}}(t) + P_{\text{renew}}(t) = P_{\text{IT}}(t) + P_{\text{cool}}(t)
+    \label{eq:power-balance}
+    \end{equation}
+    其中$P_{\text{renew}}$为可再生能源发电，$P_{\text{IT}}$为 IT 设备功耗，$P_{\text{cool}}$为冷却系统功耗。
+    
+    \item \textbf{IT 功耗模型}：
+    \begin{equation}
+    P_{\text{IT}}(t) = \sum_{s=1}^{S} \left[ P_{\text{static}}^s \cdot u_s(t) + P_{\text{dynamic}}^s \cdot l_s(t) \right]
+    \label{eq:it-power}
+    \end{equation}
+    其中$u_s(t)$为服务器$s$的开关状态（0/1），$l_s(t)$为负载率（0-1）。
+    
+    \item \textbf{冷却功耗模型}：
+    \begin{equation}
+    P_{\text{cool}}(t) = \frac{1}{\text{COP}(t)} \cdot \left[ P_{\text{IT}}(t) + H_{\text{gain}}(t) \right]
+    \label{eq:cool-power}
+    \end{equation}
+    其中 COP 为制冷系数，$H_{\text{gain}}$为环境热增益。
+    
+    \item \textbf{工作负载分配约束}：
+    \begin{equation}
+    \sum_{s=1}^{S} x_{js}(t) = 1, \quad \forall j \in \text{Jobs}
+    \label{eq:workload-assign}
+    \end{equation}
+    其中$x_{js}(t)$表示任务$j$是否分配给服务器$s$。
+    
+    \item \textbf{容量约束}：
+    \begin{equation}
+    \sum_{j=1}^{J} \text{resource}_j \cdot x_{js}(t) \leq \text{capacity}_s, \quad \forall s
+    \label{eq:capacity}
+    \end{equation}
+    
+    \item \textbf{QoS 约束}：
+    \begin{equation}
+    \text{completion}_j \leq \text{deadline}_j + \text{slack}, \quad \forall j
+    \label{eq:qos}
+    \end{equation}
+\end{enumerate}
+
+\textbf{模型特点}：
+\begin{itemize}
+    \item \textbf{优点}：模型简洁、易于理解、可快速求解
+    \item \textbf{局限}：忽略时间耦合、忽略不确定性、假设信息完全已知
+    \item \textbf{适用场景}：离线规划、教学演示、基准对比
+\end{itemize}
+
+\subsubsection{迭代 1：多时间尺度动态优化}
+
+理想模型假设单时段决策，实际需要考虑时间耦合。引入储能系统和可转移负载后，模型扩展为：
+
+\textbf{新增变量}：
+\begin{itemize}
+    \item $E_{\text{bat}}(t)$：$t$ 时段储能电量
+    \item $P_{\text{charge}}(t)$、$P_{\text{discharge}}(t)$：充/放电功率
+    \item $W_{\text{backlog}}(t)$：$t$ 时段积压的可转移负载
+\end{itemize}
+
+\textbf{新增约束}：
+\begin{enumerate}
+    \setcounter{enumi}{6}
+    \item \textbf{储能动态}：
+    \begin{equation}
+    E_{\text{bat}}(t+1) = E_{\text{bat}}(t) + \eta_c P_{\text{charge}}(t) - \frac{1}{\eta_d} P_{\text{discharge}}(t)
+    \label{eq:battery-dynamics}
+    \end{equation}
+    其中$\eta_c$、$\eta_d$为充/放电效率。
+    
+    \item \textbf{储能容量}：
+    \begin{equation}
+    E_{\min} \leq E_{\text{bat}}(t) \leq E_{\max}, \quad \forall t
+    \label{eq:battery-capacity}
+    \end{equation}
+    
+    \item \textbf{负载积压动态}：
+    \begin{equation}
+    W_{\text{backlog}}(t+1) = W_{\text{backlog}}(t) + W_{\text{arrival}}(t) - W_{\text{processed}}(t)
+    \label{eq:workload-dynamics}
+    \end{equation}
+    
+    \item \textbf{最大延迟约束}：
+    \begin{equation}
+    W_{\text{backlog}}(t) \leq W_{\max}, \quad \forall t
+    \label{eq:max-delay}
+    \end{equation}
+\end{enumerate}
+
+\textbf{求解方法}：
+\begin{itemize}
+    \item \textbf{动态规划（DP）}：适用于小规模问题，可保证全局最优，但存在"维数灾难"
+    \item \textbf{模型预测控制（MPC）}：滚动优化，处理约束能力强，工业界广泛采用
+    \item \textbf{启发式算法}：遗传算法、粒子群优化，适用于大规模问题
+\end{itemize}
+
+\subsubsection{迭代 2：考虑不确定性的随机优化}
+
+实际场景中，电价、可再生能源出力、工作负载到达均存在不确定性。引入随机优化框架：
+
+\textbf{不确定性建模}：
+\begin{itemize}
+    \item \textbf{场景法}：生成$K$个典型场景$\{\xi_1, \xi_2, \ldots, \xi_K\}$，每个场景概率为$\pi_k$
+    \item \textbf{鲁棒优化}：定义不确定集$\mathcal{U}$，优化最坏情况性能
+\end{itemize}
+
+\textbf{两阶段随机规划}：
+
+\begin{equation}
+\min_{x} \left[ c^T x + \mathbb{E}_{\xi} \left[ Q(x, \xi) \right] \right]
+\label{eq:two-stage}
+\end{equation}
+
+其中：
+\begin{itemize}
+    \item $x$：第一阶段决策（如机组启停、储能配置）
+    \item $\xi$：不确定性参数（电价、可再生能源、负载）
+    \item $Q(x, \xi)$：第二阶段 recourse 函数
+\end{itemize}
+
+\textbf{求解方法}：
+\begin{itemize}
+    \item \textbf{Benders 分解}：将问题分解为主问题和子问题，迭代求解
+    \item \textbf{L 形分解}：适用于两阶段随机线性规划
+    \item \textbf{样本平均近似（SAA）}：用有限样本近似期望
+\end{itemize}
+
+\subsubsection{迭代 3：数据驱动的在线学习优化}
+
+当不确定性分布未知或环境高度动态时，采用在线学习方法：
+
+\textbf{强化学习框架}：
+
+\begin{itemize}
+    \item \textbf{状态空间}：$s_t = \{ \text{电价}_t, \text{碳强度}_t, \text{负载}_t, \text{储能}_t, \text{温度}_t \}$
+    \item \textbf{动作空间}：$a_t = \{ \text{服务器开关}, \text{频率调节}, \text{充放电功率}, \text{负载路由} \}$
+    \item \textbf{奖励函数}：$r_t = -(\alpha \cdot \text{cost}_t + \beta \cdot \text{carbon}_t + \gamma \cdot \text{QoS\_penalty}_t)$
+\end{itemize}
+
+\textbf{算法选择}：
+\begin{table}[h]
+\centering
+\caption{强化学习算法对比}
+\label{tab:rl-algo-compare}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{算法} & \textbf{适用场景} & \textbf{样本效率} & \textbf{稳定性} & \textbf{代表性工作} \\
+\midrule
+DQN & 离散动作 & 低 & 中 & Mao et al. (HotNets 2016) \\
+DDPG & 连续动作 & 中 & 中 & Li et al. (IEEE TPDS 2018) \\
+PPO & 通用 & 中 & 高 & Google DeepMind (2021) \\
+SAC & 连续动作 & 高 & 高 & 最新研究 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{混合方法}：
+\begin{itemize}
+    \item \textbf{MPC+RL}：MPC 处理约束，RL 学习未知动态
+    \item \textbf{优化+学习}：传统优化提供初始解，RL 在线微调
+\end{itemize}
+
+\subsubsection{生产环境简化策略}
+
+实际部署中，为平衡优化效果和计算开销，通常采用以下简化：
+
+\begin{table}[h]
+\centering
+\caption{生产环境简化策略}
+\label{tab:production-simplifications}
+\begin{tabular}{@{}p{4cm}p{4cm}p{4cm}@{}}
+\toprule
+\textbf{简化项} & \textbf{理想模型} & \textbf{生产简化} \\
+\midrule
+时间粒度 & 连续时间 & 15 分钟时间槽 \\
+PUE 模型 & 复杂热力学 & 线性近似：PUE = a + b·load \\
+工作负载建模 & 单个任务 & 任务类别聚合 \\
+价格/碳预测 & 复杂模型 & ARIMA 简单预测 \\
+约束处理 & 硬约束 & 软约束 + 惩罚项 \\
+优化范围 & 全局最优 & 滚动时域 (24h 窗口) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Google 碳智能计算实践}\cite{google2021carbon}：
+\begin{itemize}
+    \item 15 分钟时间槽（非连续时间）
+    \item 预计算工作负载 profile
+    \item 滚动时域优化（24 小时窗口）
+    \item PUE 与负载的线性近似
+    \item 简化后求解时间从小时级降至分钟级
+\end{itemize}
+
+\subsubsection{模型演进总结}
+
+\begin{table}[h]
+\centering
+\caption{优化模型演进路径}
+\label{tab:model-evolution}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{阶段} & \textbf{模型类型} & \textbf{不确定性} & \textbf{求解方法} & \textbf{适用场景} \\
+\midrule
+阶段 1 & 静态优化 & 无 & MILP/QP & 规划、小数据中心 \\
+阶段 2 & 动态规划 & 确定性 & DP/MPC & 单数据中心、短期 \\
+阶段 3 & 随机优化 & 已知分布 & Benders/SAA & 中型数据中心 \\
+阶段 4 & 在线学习 & 未知分布 & RL/混合方法 & 动态环境、大规模 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{求解方法对比}：
+
+\begin{table}[h]
+\centering
+\caption{优化求解方法对比}
+\label{tab:solver-compare}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{方法} & \textbf{优点} & \textbf{缺点} & \textbf{适用场景} \\
+\midrule
+MILP & 最优解、可证明 & 大规模慢 & 规划、小数据中心 \\
+DP & 处理动态 & 维数灾难 & 单数据中心、短期 \\
+启发式 & 快速、可扩展 & 无最优保证 & 生产环境 \\
+RL & 适应不确定性 & 训练开销 & 动态环境 \\
+MPC & 处理约束 & 模型依赖 & 实时控制 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{跨域算力协同调度}
 
 \textbf{调度约束}：
 
