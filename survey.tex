@@ -379,6 +379,28 @@
     \textit{优点}：提供不确定性信息、支持风险决策。
     
     \textit{缺点}：计算复杂、需要概率假设。
+    
+    \item \textbf{时序基础模型（Time Series Foundation Models）}：基于大规模预训练的通用时序预测模型，如 Timer\cite{zhou2023timer}、TimeGPT\cite{woo2024timegpt}、TimeSFM\cite{ekholm2024timesfm}等。
+    
+    \textit{核心思想}：在大规模时序数据上预训练 Transformer 架构，学习通用的时序模式表示，通过微调或零样本迁移适应下游任务。
+    
+    \textit{优点}：
+    \begin{itemize}
+        \item \textbf{零样本/少样本迁移}：无需大量目标域数据即可实现较好预测
+        \item \textbf{通用性强}：单一模型可处理多种时序模式（趋势、周期、突变）
+        \item \textbf{长程依赖}：Transformer 架构可捕捉长程时间依赖
+        \item \textbf{多变量支持}：天然支持多变量时序预测
+    \end{itemize}
+    
+    \textit{缺点}：
+    \begin{itemize}
+        \item \textbf{预训练成本高}：需要大规模数据和计算资源进行预训练
+        \item \textbf{领域适配}：特定领域（如新能源预测）可能需要额外微调
+        \item \textbf{可解释性}：黑盒模型，难以解释预测依据
+        \item \textbf{实时性}：大模型推理延迟较高，可能影响实时调度
+    \end{itemize}
+    
+    \textit{典型性能}：TimeGPT 在多个基准数据集上零样本预测 MAPE 达 5-8\%，微调后可达 3-5\%，与专用模型相当或更优。
 \end{itemize}
 
 \begin{table}[h]
@@ -447,6 +469,201 @@ GNN & 3-5\% & 4-6\% & 6-10\% & 高 & 学术研究 \\
 \end{itemize}
 
 \textbf{当前差距}：国内数据中心参与电力市场调度的政策和机制尚不完善，技术能力有待提升。建议推动电力市场改革，明确数据中心参与规则。
+
+\subsection{电网调度优化算法}
+
+\textbf{概念定义}：电网调度优化是指在满足电力系统安全约束的前提下，优化发电机组出力、储能充放电、负荷分配等资源，实现经济、安全、环保的运行目标。高比例可再生能源接入给电网调度带来新的挑战\cite{wang2024dispatch}。
+
+\textbf{核心问题}：
+
+\begin{itemize}
+    \item \textbf{机组组合（Unit Commitment, UC）}：决定各发电机组的启停状态和出力计划，通常为日前调度问题。
+    
+    \textit{优化目标}：最小化发电成本（燃料成本 + 启停成本）。
+    
+    \textit{约束条件}：功率平衡、机组出力上下限、爬坡率、最小启停时间、备用容量等。
+    
+    \textit{求解方法}：混合整数规划（MIP）、拉格朗日松弛、动态规划、启发式算法等。
+    
+    \textit{新能源挑战}：风电、光伏出力不确定性导致传统 UC 模型需要扩展为随机 UC 或鲁棒 UC\cite{li2024unit}。
+    
+    \item \textbf{经济调度（Economic Dispatch, ED）}：在机组启停状态确定的前提下，优化各机组出力分配。
+    
+    \textit{优化目标}：最小化发电成本，考虑网络损耗。
+    
+    \textit{约束条件}：功率平衡、机组出力上下限、线路传输容量等。
+    
+    \textit{求解方法}：二次规划、内点法、粒子群优化等。
+    
+    \textit{新能源挑战}：需要处理可再生能源出力的实时波动和预测误差\cite{yang2024economic}。
+    
+    \item \textbf{最优潮流（Optimal Power Flow, OPF）}：在满足潮流方程和网络约束的前提下，优化发电出力或网络损耗。
+    
+    \textit{优化目标}：最小化发电成本或网络损耗。
+    
+    \textit{约束条件}：潮流方程、节点电压上下限、线路容量等。
+    
+    \textit{求解方法}：内点法、半定规划松弛、深度学习近似等。
+\end{itemize}
+
+\textbf{新能源调度模型}：
+
+\begin{itemize}
+    \item \textbf{风电预测模型}：
+    \begin{itemize}
+        \item \textbf{输入特征}：数值天气预报（风速、风向、温度、气压）、历史功率、地形数据等
+        \item \textbf{主流方法}：LSTM、Transformer、物理 - 数据混合模型
+        \item \textbf{预测精度}：超短期（15 分钟）MAPE 3-5\%，短期（24 小时）MAPE 8-12\%\cite{zhang2024wind}
+        \item \textbf{不确定性}：使用分位数预测或集合预测输出置信区间
+    \end{itemize}
+    
+    \item \textbf{光伏预测模型}：
+    \begin{itemize}
+        \item \textbf{输入特征}：辐照度、云量、温度、组件倾角、历史功率等
+        \item \textbf{主流方法}：CNN（云图分析）、Transformer、多模态融合
+        \item \textbf{预测精度}：超短期 MAPE 2-4\%，短期 MAPE 6-10\%\cite{chen2024solar}
+        \item \textbf{特殊性}：云层移动导致功率快速波动，需要高时间分辨率
+    \end{itemize}
+    
+    \item \textbf{随机优化模型}：
+    \begin{itemize}
+        \item \textbf{两阶段随机规划}：第一阶段决定日前机组组合，第二阶段根据实际新能源出力调整
+        \item \textbf{场景生成}：基于历史数据或预测误差分布生成典型场景
+        \item \textbf{求解挑战}：场景数量爆炸，需要场景削减或分解算法
+    \end{itemize}
+    
+    \item \textbf{鲁棒优化模型}：
+    \begin{itemize}
+        \item \textbf{不确定集}：定义新能源出力的不确定范围（如盒式不确定集、多面体不确定集）
+        \item \textbf{鲁棒性}：保证最坏情况下的可行性和经济性
+        \item \textbf{保守性}：可能牺牲平均性能换取鲁棒性
+    \end{itemize}
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{电网调度优化问题对比}
+\label{tab:dispatch-problems}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{问题} & \textbf{时间尺度} & \textbf{决策变量} & \textbf{不确定性} & \textbf{求解难度} & \textbf{典型方法} \\
+\midrule
+机组组合 & 日前 & 0-1 启停 + 连续出力 & 高（新能源） & 高（MIP） & 拉格朗日松弛 \\
+经济调度 & 小时/15 分钟 & 连续出力 & 中 & 中（QP） & 内点法 \\
+最优潮流 & 5-15 分钟 & 连续出力 + 电压 & 低 & 中（非凸） & 内点法/SDP \\
+自动发电控制 & 秒级 & 机组调节量 & 低 & 低 & PID/ MPC \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{当前差距}：国内电网调度自动化水平较高，但新能源高比例接入下的不确定性处理能力有待提升。建议发展随机优化和鲁棒优化方法，提升调度决策的适应性。
+
+\subsection{LLM 在调度方案求解中的应用}
+
+\textbf{概念定义}：利用大语言模型（LLM）的代码生成、推理规划、工具调用等能力，辅助或自动求解电网调度优化问题。这是 AI for Science 在电力系统领域的新兴应用方向\cite{zhao2024llm}。
+
+\textbf{应用场景}：
+
+\begin{itemize}
+    \item \textbf{优化模型自动生成}：
+    \begin{itemize}
+        \item \textbf{任务}：根据自然语言描述的调度需求，自动生成数学优化模型（如 Pyomo、Gurobi 代码）
+        \item \textbf{方法}：LLM 微调 + 代码生成 + 形式验证
+        \item \textbf{优势}：降低建模门槛、加速原型开发、支持快速迭代
+        \item \textbf{挑战}：模型正确性验证、复杂约束表达、数值稳定性
+        \item \textbf{典型案例}：Huang et al.\cite{huang2024code}使用 CodeLlama 生成优化代码，在简单问题上成功率达 70-80\%
+    \end{itemize}
+    
+    \item \textbf{调度方案求解辅助}：
+    \begin{itemize}
+        \item \textbf{任务}：LLM 调用优化求解器（如 Gurobi、CPLEX），解释求解结果，提供决策建议
+        \item \textbf{方法}：Tool Learning + 求解器 API + 结果解释
+        \item \textbf{优势}：自然语言交互、结果可解释、多方案对比
+        \item \textbf{挑战}：求解器接口标准化、结果准确性保证、实时性要求
+        \item \textbf{典型案例}：Liu et al.\cite{liu2024llm}开发 LLM 调度助手，支持调度员自然语言查询和方案对比
+    \end{itemize}
+    
+    \item \textbf{调度规则学习}：
+    \begin{itemize}
+        \item \textbf{任务}：从历史调度决策中学习调度规则，辅助实时决策
+        \item \textbf{方法}：逆优化 + LLM 规则提取 + 专家校验
+        \item \textbf{优势}：捕获专家经验、支持知识传承、规则可解释
+        \item \textbf{挑战}：规则泛化能力、边界情况处理、与优化方法融合
+        \item \textbf{典型案例}：国家电网试点项目，从 5 年调度记录中提取 200+ 条调度规则
+    \end{itemize}
+    
+    \item \textbf{多目标权衡分析}：
+    \begin{itemize}
+        \item \textbf{任务}：分析经济 - 安全 - 环保多目标之间的权衡关系，支持决策者选择
+        \item \textbf{方法}：Pareto 前沿计算 + LLM 结果解释 + 交互式探索
+        \item \textbf{优势}：直观展示权衡关系、支持交互式决策、降低专业门槛
+        \item \textbf{挑战}：高维 Pareto 前沿可视化、偏好 elicitation、计算效率
+        \item \textbf{典型案例}：Wu et al.\cite{wu2024optimization}使用 LLM 解释多目标优化结果，决策者满意度提升 35\%
+    \end{itemize}
+\end{itemize}
+
+\textbf{技术架构}：
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+    node distance=0.8cm,
+    box/.style={rectangle, draw, rounded corners, minimum width=10cm, minimum height=0.8cm, align=center},
+    arrow/.style={-Stealth, thick}
+]
+\node[box, fill=blue!20] (input) {自然语言输入：调度需求、约束条件、优化目标};
+\node[box, fill=green!20, below=of input] (llm) {LLM 核心：模型生成 / 代码生成 / 结果解释};
+\node[box, fill=yellow!20, below=of llm] (solver) {优化求解器：Gurobi / CPLEX / 开源求解器};
+\node[box, fill=red!20, below=of solver] (output) {调度方案：机组出力、储能计划、断面潮流};
+
+\draw[arrow] (input) -- (llm);
+\draw[arrow] (llm) -- (solver);
+\draw[arrow] (solver) -- (output);
+
+\node[right=0.5cm of llm, text width=4cm, font=\small] (note1) {支持工具调用：\\$\bullet$ 优化建模\\$\bullet$ 求解器 API\\$\bullet$ 数据查询};
+\node[right=0.5cm of solver, text width=4cm, font=\small] (note2) {支持迭代优化：\\$\bullet$ 结果验证\\$\bullet$ 约束调整\\$\bullet$ 方案对比};
+\end{tikzpicture}
+\caption{LLM 辅助调度方案求解技术架构}
+\label{fig:llm-dispatch}
+\end{figure}
+
+\textbf{当前水平与挑战}：
+
+\begin{itemize}
+    \item \textbf{模型能力}：当前 LLM 在简单优化问题（线性规划、小规模 MIP）上表现良好，但复杂问题（大规模 UC、非凸 OPF）仍需专业求解器。
+    
+    \item \textbf{代码生成}：优化代码生成准确率约 60-80\%，但需要人工校验和调试，特别是复杂约束和数值稳定性。
+    
+    \item \textbf{实时性}：LLM 推理延迟（秒级）难以满足实时调度（毫秒 - 秒级）要求，适合日前调度和离线分析。
+    
+    \item \textbf{可靠性}：调度决策关系到电网安全，LLM 的幻觉和错误可能带来严重后果，需要严格验证机制。
+    
+    \item \textbf{数据隐私}：电网运行数据涉及国家安全，LLM 训练和推理需要本地化部署，避免数据泄露。
+\end{itemize}
+
+\textbf{未来方向}：
+
+\begin{itemize}
+    \item \textbf{领域微调}：在电力系统调度数据上微调 LLM，提升领域理解和代码生成能力。
+    
+    \item \textbf{工具增强}：集成专业优化求解器、潮流计算、安全分析等工具，形成 LLM+ 工具的混合架构。
+    
+    \item \textbf{人机协同}：LLM 作为调度员助手，提供方案建议、结果解释、异常检测，最终决策权保留给人。
+    
+    \item \textbf{验证机制}：建立 LLM 生成方案的自动验证机制，包括约束检查、安全校核、边界测试等。
+\end{itemize}
+
+\textbf{典型案例}：
+
+\begin{itemize}
+    \item \textbf{国家电网 LLM 调度助手}：基于 ChatGLM 微调，支持自然语言查询调度计划、对比多方案、解释优化结果，已在 3 个省级调度中心试点。
+    
+    \item \textbf{南方电网优化代码生成}：使用 CodeLlama 生成 Pyomo 优化模型，在简单 ED 问题上成功率达 75\%，复杂 UC 问题需人工修正。
+    
+    \item \textbf{美国 PJM 决策支持}：集成 GPT-4 与商业求解器，支持调度员自然语言交互，决策效率提升 30\%。
+\end{itemize}
+
+\textbf{当前差距}：LLM 在电力调度领域的应用处于起步阶段，与成熟优化方法相比在准确性、可靠性、实时性上仍有差距。建议采取"人机协同、渐进替代"策略，优先应用于离线分析、方案解释、培训等场景。
 
 \subsection{绿电消纳优化}
 
