@@ -1073,7 +1073,308 @@ SAC & 连续动作 & 高 & 高 & 最新研究 \\
     \item \textbf{优化+学习}：传统优化提供初始解，RL 在线微调
 \end{itemize}
 
-\subsubsection{生产环境简化策略}
+\subsubsection{新能源消纳场景下的算电协同强化学习方案}
+
+针对新能源消纳场景，本节详细说明强化学习方案所需的数据、环境建模和训练算法。
+
+\textbf{1. 所需数据}：
+
+\begin{table}[h]
+\centering
+\caption{新能源消纳场景所需数据}
+\label{tab:re-data-requirements}
+\begin{tabular}{@{}p{3cm}p{4cm}p{4cm}p{3cm}@{}}
+\toprule
+\textbf{数据类型} & \textbf{具体数据} & \textbf{来源} & \textbf{时间分辨率} \\
+\midrule
+\textbf{新能源出力} & 风电功率、光伏功率、预测误差 & 气象局、风电场/光伏电站 SCADA & 5-15 分钟 \\
+\textbf{电价数据} & 分时电价、实时电价、辅助服务价格 & 电力交易中心、电网公司 & 15 分钟 -1 小时 \\
+\textbf{碳强度数据} & 电网边际碳强度、区域碳因子 & 碳排放监测平台、电网公司 & 小时级 \\
+\textbf{算力负载} & 任务到达率、任务类型、QoS 要求 & 数据中心作业调度系统 & 秒级 - 分钟级 \\
+\textbf{储能状态} & SOC、充放电功率、效率 & 储能系统 BMS & 秒级 \\
+\textbf{环境数据} & 环境温度、湿度、服务器温度 & 气象站、数据中心 DCIM & 分钟级 \\
+\textbf{电网约束} & 功率上限、需求响应信号 & 电网调度中心 & 分钟级 - 小时级 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{公开数据集来源}：
+
+\begin{itemize}
+    \item \textbf{新能源出力}：
+    \begin{itemize}
+        \item \textbf{Global Energy Forecasting Competition (GEFCom)}：https://www.drivendata.org/competitions/72/energy-forecasting/
+        \item 包含风电、光伏、负荷预测数据，时间跨度 2012-2017 年
+        \item 分辨率：小时级，适合训练和基准测试
+    \end{itemize}
+    
+    \item \textbf{电价数据}：
+    \begin{itemize}
+        \item \textbf{PJM 电力市场数据}：https://datatracker.pjm.com/
+        \item 包含实时电价（LMP）、辅助服务价格
+        \item 分辨率：5 分钟，覆盖美国最大电网区域
+    \end{itemize}
+    
+    \item \textbf{碳强度数据}：
+    \begin{itemize}
+        \item \textbf{Electricity Maps API}：https://api.electricitymap.org/
+        \item 全球电网实时碳强度数据
+        \item 分辨率：小时级，覆盖 50+ 国家/地区
+    \end{itemize}
+    
+    \item \textbf{数据中心负载}：
+    \begin{itemize}
+        \item \textbf{Google Cluster Data}：https://github.com/google/cluster-data
+        \item 12,000+ 台机器，29 天轨迹，10 亿 + 任务记录
+        \item 分辨率：秒级 - 分钟级
+    \end{itemize}
+    
+    \item \textbf{综合数据集}：
+    \begin{itemize}
+        \item \textbf{ClusterGym}：https://github.com/cluster-gym/cluster-gym
+        \item 基于 Google/Ali 轨迹的 RL 训练环境
+        \item 预集成电价、碳强度数据
+    \end{itemize}
+\end{itemize}
+
+\textbf{2. 环境建模}：
+
+\textbf{状态空间（State Space）}：
+
+\begin{equation}
+s_t = \left[ 
+\begin{array}{l}
+\text{电价}_t, \text{碳强度}_t, \text{新能源出力}_t, \text{负载}_t, \\
+\text{储能 SOC}_t, \text{服务器状态}_t, \text{温度}_t, \text{时间特征}_t
+\end{array}
+\right]
+\label{eq:rl-state}
+\end{equation}
+
+具体维度：
+\begin{itemize}
+    \item \textbf{电价}：实时电价（1 维）或分时电价时段（one-hot，3-6 维）
+    \item \textbf{碳强度}：电网边际碳强度（1 维，kgCO₂/kWh）
+    \item \textbf{新能源出力}：风电 + 光伏功率（2 维，或归一化 0-1）
+    \item \textbf{负载}：当前任务队列长度、任务类型分布（5-10 维）
+    \item \textbf{储能 SOC}：电池荷电状态（1 维，0-1）
+    \item \textbf{服务器状态}：各服务器开关状态、负载率（N 维，N=服务器数量）
+    \item \textbf{温度}：数据中心内部温度、环境温度（2-5 维）
+    \item \textbf{时间特征}：小时（one-hot，24 维）、工作日/周末（1 维）
+\end{itemize}
+
+\textbf{动作空间（Action Space）}：
+
+\begin{equation}
+a_t = \left[ 
+\begin{array}{l}
+\text{服务器开关}, \text{频率调节}, \text{储能充放电}, \\
+\text{负载路由}, \text{可转移负载调度}
+\end{array}
+\right]
+\label{eq:rl-action}
+\end{equation}
+
+具体维度：
+\begin{itemize}
+    \item \textbf{服务器开关}：离散动作（N 维，0/1）或连续动作（N 维，0-1 概率）
+    \item \textbf{频率调节}：连续动作（N 维，CPU 频率 0-100\%）
+    \item \textbf{储能充放电}：连续动作（1 维，-1 到 1，负值放电，正值充电）
+    \item \textbf{负载路由}：离散动作（M 维，M=数据中心数量）或连续动作（负载分配比例）
+    \item \textbf{可转移负载调度}：离散动作（推迟/提前/立即执行）
+\end{itemize}
+
+\textbf{奖励函数（Reward Function）}：
+
+\begin{equation}
+r_t = -\left( 
+\alpha \cdot \frac{\text{cost}_t}{\text{cost}_{\text{base}}} + 
+\beta \cdot \frac{\text{carbon}_t}{\text{carbon}_{\text{base}}} + 
+\gamma \cdot \frac{\text{QoS\_violation}_t}{\text{QoS}_{\text{base}}} +
+\delta \cdot \text{curtailment}_t
+\right)
+\label{eq:rl-reward}
+\end{equation}
+
+其中：
+\begin{itemize}
+    \item $\text{cost}_t = c_e(t) \cdot P_{\text{grid}}(t) \cdot \Delta t$（电费成本）
+    \item $\text{carbon}_t = \text{CI}(t) \cdot P_{\text{grid}}(t) \cdot \Delta t$（碳排放）
+    \item $\text{QoS\_violation}_t = \sum_j \max(0, \text{completion}_j - \text{deadline}_j)$（QoS 违约）
+    \item $\text{curtailment}_t = \max(0, P_{\text{renew}}(t) - P_{\text{usable}}(t))$（弃风弃光）
+    \item $\alpha, \beta, \gamma, \delta$：权重系数，满足$\alpha+\beta+\gamma+\delta=1$
+    \item $\text{cost}_{\text{base}}, \text{carbon}_{\text{base}}, \text{QoS}_{\text{base}}$：基准值，用于归一化
+\end{itemize}
+
+\textbf{约束处理}：
+
+\begin{itemize}
+    \item \textbf{硬约束}（必须满足）：
+    \begin{itemize}
+        \item 储能容量：$E_{\min} \leq E_{\text{bat}}(t) \leq E_{\max}$
+        \item 充放电功率：$P_{\text{charge}} \leq P_{\text{charge}}^{\max}$, $P_{\text{discharge}} \leq P_{\text{discharge}}^{\max}$
+        \item 电网功率上限：$P_{\text{grid}}(t) \leq P_{\text{grid}}^{\max}$
+    \end{itemize}
+    
+    \item \textbf{软约束}（违反时惩罚）：
+    \begin{itemize}
+        \item QoS 约束：$\text{completion}_j \leq \text{deadline}_j + \text{slack}$
+        \item 温度约束：$T_{\text{in}}(t) \leq T_{\max}$
+    \end{itemize}
+\end{itemize}
+
+\textbf{3. 训练算法}：
+
+\begin{table}[h]
+\centering
+\caption{新能源消纳场景 RL 算法推荐}
+\label{tab:rl-algo-recommend}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{算法} & \textbf{动作空间} & \textbf{样本效率} & \textbf{稳定性} & \textbf{收敛速度} & \textbf{推荐场景} \\
+\midrule
+PPO & 连续/离散 & 中 & 高 & 中 & \textbf{通用推荐} \\
+SAC & 连续 & 高 & 高 & 中 & 连续控制（储能、频率） \\
+TD3 & 连续 & 高 & 中 & 快 & 连续控制、高精度 \\
+DQN & 离散 & 低 & 中 & 快 & 离散动作（服务器开关） \\
+A3C & 连续/离散 & 中 & 中 & 快 & 分布式训练 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{推荐算法：PPO（Proximal Policy Optimization）}
+
+\textbf{选择理由}：
+\begin{itemize}
+    \item \textbf{稳定性高}：截断策略梯度，避免策略更新过大
+    \item \textbf{超参数鲁棒}：对超参数不敏感，易于调优
+    \item \textbf{支持混合动作}：可同时处理连续和离散动作
+    \item \textbf{工业验证}：Google DeepMind 在数据中心冷却中成功应用
+\end{itemize}
+
+\textbf{PPO 算法伪代码}：
+
+\begin{algorithm}[h]
+\caption{PPO for Compute-Power Co-Scheduling}
+\label{alg:ppo}
+\begin{algorithmic}[1]
+\STATE \textbf{输入}: 初始策略$\pi_{\theta_0}$, 价值函数$V_{\phi_0}$, 学习率$\alpha$, 截断参数$\epsilon$
+\FOR{iteration = 1, 2, \ldots}
+    \STATE 收集轨迹数据$\{(s_t, a_t, r_t, s_{t+1})\}$使用当前策略$\pi_{\theta}$
+    \STATE 计算优势函数$\hat{A}_t$使用 GAE 方法
+    \STATE 计算回报$R_t = \sum_{k=0}^{\infty} \gamma^k r_{t+k}$
+    \FOR{epoch = 1, \ldots, K}
+        \STATE 计算策略比率$r_t(\theta) = \frac{\pi_{\theta}(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}$
+        \STATE 计算截断损失$L^{\text{CLIP}}(\theta) = \mathbb{E}_t[\min(r_t \hat{A}_t, \text{clip}(r_t, 1-\epsilon, 1+\epsilon) \hat{A}_t)]$
+        \STATE 计算价值损失$L^{\text{VF}}(\phi) = \mathbb{E}_t[(V_{\phi}(s_t) - R_t)^2]$
+        \STATE 计算熵正则化$L^{\text{ENT}}(\theta) = \mathbb{E}_t[\mathcal{H}(\pi_{\theta}(\cdot|s_t))]$
+        \STATE 总损失：$L(\theta, \phi) = L^{\text{CLIP}} + c_1 L^{\text{VF}} - c_2 L^{\text{ENT}}$
+        \STATE 更新$\theta \leftarrow \theta + \alpha \nabla_{\theta} L$, $\phi \leftarrow \phi + \alpha \nabla_{\phi} L$
+    \ENDFOR
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+\textbf{训练技巧}：
+
+\begin{itemize}
+    \item \textbf{课程学习（Curriculum Learning）}：
+    \begin{itemize}
+        \item 阶段 1：简单场景（固定负载、固定电价）
+        \item 阶段 2：中等难度（随机负载、分时电价）
+        \item 阶段 3：完整场景（随机负载、实时电价、新能源波动）
+    \end{itemize}
+    
+    \item \textbf{经验回放（Experience Replay）}：
+    \begin{itemize}
+        \item 优先采样高 TD-error 的样本
+        \item 增加稀有事件（如电价尖峰、新能源骤降）的采样概率
+    \end{itemize}
+    
+    \item \textbf{奖励塑形（Reward Shaping）}：
+    \begin{itemize}
+        \item 初期增加中间奖励（如储能 SOC 接近目标值）
+        \item 逐步减少中间奖励，过渡到稀疏奖励
+    \end{itemize}
+    
+    \item \textbf{域随机化（Domain Randomization）}：
+    \begin{itemize}
+        \item 训练时随机化电价、负载、新能源出力的分布参数
+        \item 提高策略在真实环境的泛化能力
+    \end{itemize}
+\end{itemize}
+
+\textbf{4. 训练流程}：
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+    node distance=0.8cm,
+    box/.style={rectangle, draw, rounded corners, minimum width=10cm, minimum height=0.8cm, align=center},
+    arrow/.style={-Stealth, thick}
+]
+\node[box, fill=blue!20] (data) {数据采集与预处理\\电价、新能源、负载、碳强度};
+\node[box, fill=green!20, below=of data] (env) {环境建模\\状态空间、动作空间、奖励函数};
+\node[box, fill=yellow!20, below=of env] (train) {RL 训练\\PPO/SAC 算法、课程学习};
+\node[box, fill=red!20, below=of train] (deploy) {部署与在线学习\\模型更新、性能监控};
+
+\draw[arrow] (data) -- (env);
+\draw[arrow] (env) -- (train);
+\draw[arrow] (train) -- (deploy);
+
+\node[right=0.5cm of env, text width=4cm, font=\small] (note1) {关键步骤：\\$\bullet$ 数据归一化\\$\bullet$ 约束编码};
+\node[right=0.5cm of train, text width=4cm, font=\small] (note2) {训练技巧：\\$\bullet$ 课程学习\\$\bullet$ 域随机化};
+\node[right=0.5cm of deploy, text width=4cm, font=\small] (note3) {部署注意：\\$\bullet$ 安全验证\\$\bullet$ 性能监控};
+\end{tikzpicture}
+\caption{新能源消纳场景下算电协同 RL 训练流程}
+\label{fig:rl-workflow}
+\end{figure}
+
+\textbf{5. 评估指标}：
+
+\begin{table}[h]
+\centering
+\caption{RL 策略评估指标}
+\label{tab:rl-metrics}
+\begin{tabular}{@{}lccccl@{}}
+\toprule
+\textbf{指标} & \textbf{定义} & \textbf{目标值} & \textbf{基准方法} \\
+\midrule
+新能源消纳率 & $\frac{P_{\text{renew, used}}}{P_{\text{renew, total}}}$ & $>$90\% & 规则调度 (70-80\%) \\
+运营成本降低 & $\frac{\text{cost}_{\text{base}} - \text{cost}_{\text{RL}}}{\text{cost}_{\text{base}}}$ & $>$15\% & 规则调度 \\
+碳排放减少 & $\frac{\text{carbon}_{\text{base}} - \text{carbon}_{\text{RL}}}{\text{carbon}_{\text{base}}}$ & $>$20\% & 规则调度 \\
+QoS 违约率 & $\frac{\text{violated\_tasks}}{\text{total\_tasks}}$ & $<$1\% & 规则调度 ($<$0.5\%) \\
+训练收敛时间 & 达到 90\% 最终性能的 episode 数 & $<$10K episodes & - \\
+泛化能力 & 新场景性能/训练场景性能 & $>$80\% & - \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{6. 开源实现参考}：
+
+\begin{itemize}
+    \item \textbf{Stable Baselines3}：https://github.com/DLR-RM/stable-baselines3
+    \begin{itemize}
+        \item Python 库，实现 PPO、SAC、TD3 等算法
+        \item 提供预训练模型和训练脚本
+    \end{itemize}
+    
+    \item \textbf{Ray RLlib}：https://github.com/ray-project/ray
+    \begin{itemize}
+        \item 分布式 RL 训练框架
+        \item 支持 PPO、SAC、A3C 等算法
+        \item 可扩展至大规模集群训练
+    \end{itemize}
+    
+    \item \textbf{ClusterGym}：https://github.com/cluster-gym/cluster-gym
+    \begin{itemize}
+        \item 基于 OpenAI Gym 的数据中心调度环境
+        \item 预集成 Google/Ali 负载轨迹
+        \item 支持电价、碳强度数据接入
+    \end{itemize}
+\end{itemize}
+
+\textbf{跨域算力协同调度}
 
 实际部署中，为平衡优化效果和计算开销，通常采用以下简化：
 
