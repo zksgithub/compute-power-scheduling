@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-04-20T11:05:14.797274",
+  "dataset": {
+    "renewable_capacity_mw": 132379.09999999998,
+    "nuclear_capacity_mw": 29471.0,
+    "conventional_capacity_mw": 216109.0,
+    "total_gpus": 10412,
+    "avg_task_time_sec": 27.164623133287325
+  },
+  "scenario": {
+    "renewable_range_mw": [
+      292.87938874634733,
+      570.7673727359394
+    ],
+    "load_range_mw": [
+      219.76676608427712,
+      478.53927890312536
+    ]
+  },
+  "results": {
+    "rule_based": {
+      "cost": 273.1026332784693,
+      "renewable_rate": 79.31601776382179,
+      "carbon": 0.15038671488348518
+    },
+    "greedy": {
+      "cost": 247.92713605109614,
+      "renewable_rate": 80.10760187104414,
+      "carbon": 0.13821855789025483
+    },
+    "mpc": {
+      "cost": 273.05798875986306,
+      "renewable_rate": 80.49406928890669,
+      "carbon": 0.1503651366994922
+    }
+  },
+  "improvements": {
+    "greedy_vs_rule": {
+      "cost_pct": 9.218328261852726,
+      "renewable_pct": 0.7915841072223486,
+      "carbon_pct": 8.091244630656268
+    },
+    "mpc_vs_rule": {
+      "cost_pct": 0.01634715786892373,
+      "renewable_pct": 1.1780515250848964,
+      "carbon_pct": 0.014348464230833104
+    }
+  }
+}
