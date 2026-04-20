@@ -1374,6 +1374,148 @@ QoS 违约率 & $\frac{\text{violated\_tasks}}{\text{total\_tasks}}$ & $<$1\% & 
     \end{itemize}
 \end{itemize}
 
+\subsubsection{真实数据集案例：山东电力 - 数据中心协同优化}
+
+本节介绍一个真实的算电协同优化数据集，包含山东电力系统数据和 GenAI 数据中心负载数据，可用于验证优化算法。
+
+\textbf{1. 数据集概述}：
+
+\begin{table}[h]
+\centering
+\caption{山东电力 - 数据中心协同优化数据集}
+\label{tab:shandong-dataset}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{数据类别} & \textbf{规模} & \textbf{时间跨度} & \textbf{来源} \\
+\midrule
+山东发电设施 & 3,046 个电厂 & 2026 年 & 全球能源监测 (GEM) \\
+GenAI 推理任务 & 68,195 个任务 & 2026 年 & 阿里云集群轨迹 \\
+GPU 节点 & 4,278 节点 / 10,412 GPU & 2026 年 & 阿里云集群轨迹 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{2. 电力系统数据}：
+
+\begin{itemize}
+    \item \textbf{总装机容量}：378.0 GW
+    \item \textbf{新能源装机}：132.4 GW (35.0\%)
+    \begin{itemize}
+        \item 风电：约 70 GW
+        \item 光伏：约 50 GW
+        \item 水电 + 生物质：约 12.4 GW
+    \end{itemize}
+    \item \textbf{传统能源装机}：216.1 GW (57.2\%)
+    \begin{itemize}
+        \item 煤电：约 180 GW
+        \item 油气：约 36.1 GW
+    \end{itemize}
+    \item \textbf{核电装机}：29.5 GW (7.8\%)
+\end{itemize}
+
+\textbf{数据文件}：
+\begin{itemize}
+    \item \texttt{shandong\_power.csv}：原始发电设施数据 (3,046 条)
+    \item \texttt{shandong\_power\_classified.csv}：分类数据（新能源/传统能源/核电）
+    \item \texttt{shandong\_power\_summary.csv}：汇总统计
+\end{itemize}
+
+\textbf{3. 数据中心算力数据}：
+
+\textbf{GenAI 推理任务} (cluster-trace-v2026-GenAI)：
+\begin{itemize}
+    \item \textbf{总任务数}：68,195 个推理任务
+    \item \textbf{任务类型}：
+    \begin{itemize}
+        \item TXT\_2\_IMG：文生图任务
+        \item IMG\_2\_IMG：图生图任务
+        \item INPAINTING：图像修复任务
+    \end{itemize}
+    \item \textbf{平均执行时间}：27.1 秒
+    \item \textbf{平均 QPS}：18.94
+    \item \textbf{峰值 QPS}：56.83
+    \item \textbf{峰值功耗}：481 MW
+\end{itemize}
+
+\textbf{GPU 集群} (cluster-trace-v2026-spot-gpu)：
+\begin{itemize}
+    \item \textbf{节点数}：4,278 个
+    \item \textbf{GPU 总数}：10,412 卡
+    \item \textbf{最大功耗}：3,249 kW (3.25 MW)
+    \item \textbf{GPU 型号分布}：
+    \begin{itemize}
+        \item A100-SXM4-80GB：3,456 卡 (33.2\%)
+        \item A10：2,494 卡 (24.0\%)
+        \item H800：1,752 卡 (16.8\%)
+        \item GPU-series-1：1,558 卡 (15.0\%)
+        \item GPU-series-2：976 卡 (9.4\%)
+        \item A800-SXM4-80GB：176 卡 (1.7\%)
+    \end{itemize}
+\end{itemize}
+
+\textbf{数据文件}：
+\begin{itemize}
+    \item \texttt{data\_trace\_processed.csv}：推理任务详情 (68,195 条)
+    \item \texttt{qps.csv}：QPS 采样数据 (24,627 条)
+    \item \texttt{pipeline\_inference\_data\_anon.csv}：推理延迟数据 (34,421 条)
+    \item \texttt{pod\_gpu\_duty\_cycle\_anon.csv}：GPU 利用率 (157,417 条)
+    \item \texttt{node\_info\_df.csv}：节点信息 (4,278 条)
+\end{itemize}
+
+\textbf{4. 典型应用场景}：
+
+\begin{enumerate}
+    \item \textbf{新能源消纳优化}：
+    \begin{itemize}
+        \item 利用山东新能源出力数据（风电 + 光伏 120 GW）
+        \item 调度 GenAI 推理任务至新能源充足时段
+        \item 目标：新能源消纳率从 70\% 提升至 90\%+
+    \end{itemize}
+    
+    \item \textbf{分时电价响应}：
+    \begin{itemize}
+        \item 结合山东分时电价政策
+        \item 将可延迟任务（如批量推理）移至低谷时段
+        \item 目标：用电成本降低 15-20\%
+    \end{itemize}
+    
+    \item \textbf{GPU 资源 - 电力联合调度}：
+    \begin{itemize}
+        \item 根据 GPU 型号功耗差异（A100 400W vs A10 150W）
+        \item 在电力紧张时优先使用高效 GPU
+        \item 目标：单位算力能耗降低 10-15\%
+    \end{itemize}
+\end{enumerate}
+
+\textbf{5. 使用示例}：
+
+\begin{verbatim}
+# 加载数据
+import pandas as pd
+
+# 电力数据
+power_df = pd.read_csv('shandong_power_classified.csv')
+renewable_capacity = power_df[
+    power_df['能源类别'] == '新能源'
+]['Capacity (MW)'].sum()  # 132.4 GW
+
+# 任务负载数据
+task_df = pd.read_csv('data_trace_processed.csv')
+avg_exec_time = task_df['exec_time_seconds'].mean()  # 27.1 秒
+
+# GPU 资源数据
+gpu_df = pd.read_csv('node_info_df.csv')
+total_gpus = gpu_df['gpu_capacity_num'].sum()  # 10,412 卡
+\end{verbatim}
+
+\textbf{6. 数据集获取}：
+
+数据集已开源，可从以下地址获取：
+\begin{itemize}
+    \item GitHub: https://github.com/zksgithub/compute-power-scheduling/tree/main/data
+    \item 包含：原始数据、分析结果、优化调度结果
+\end{itemize}
+
 \textbf{跨域算力协同调度}
 
 实际部署中，为平衡优化效果和计算开销，通常采用以下简化：

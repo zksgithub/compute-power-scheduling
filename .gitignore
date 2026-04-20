@@ -1,0 +1,26 @@
+# 大文件
+*.csv
+*.zip
+*.tar.gz
+data/
+
+# 编译产物
+*.pdf
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+
+# 编辑器
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
