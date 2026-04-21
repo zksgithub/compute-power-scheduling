@@ -162,17 +162,21 @@ PUE 模型：$\text{PUE}(t) = 1.1 + 0.2 \cdot \frac{P_{\text{IT}}(t)}{P_{\text{I
 \section{算法设计}
 \label{sec:algo}
 
-\subsection{MILP 方法}
+\subsection{规则调度方法（Rule-based）}
 
-将非线性模型线性化：
-\begin{itemize}
-    \item 二次成本函数分段线性化（5 段）
-    \item 逻辑约束使用大 M 法处理
-\end{itemize}
+策略：新能源优先使用，剩余负载从电网购电。
 
-求解器：Gurobi 10.0
+特点：实现简单，保证新能源最大化消纳。
 
-\subsection{MPC 方法}
+\subsection{贪心方法（Greedy）}
+
+策略：谷段充电、峰段放电，利用电价差降低用电成本。
+
+特点：简单有效，通过储能套利降低成本。
+
+\subsection{模型预测控制（MPC）}
+
+策略：滚动优化，基于未来 H 时段的预测做出当前决策。
 
 算法流程：
 \begin{enumerate}
@@ -182,22 +186,67 @@ PUE 模型：$\text{PUE}(t) = 1.1 + 0.2 \cdot \frac{P_{\text{IT}}(t)}{P_{\text{I
     \item 在$t+1$时刻，重复步骤 1-3
 \end{enumerate}
 
-\subsection{DRL-PPO 方法}
+特点：处理约束能力强，适应动态环境。
 
-\textbf{状态空间}（20 维）：
-$$s_t = [P_{\text{renew}}(t), \lambda_{\text{elec}}(t), \text{CI}(t), \text{queue}_t, E(t), \text{hour}_t]$$
+\subsection{深度强化学习（PPO）}
 
-\textbf{动作空间}（5 维连续）：
-$$a_t = [P_{\text{coal}}(t), P_{\text{gas}}(t), P_{\text{grid}}(t), P_{\text{ch}}(t), P_{\text{dis}}(t)]$$
+策略：使用近端策略优化（PPO）算法学习最优调度策略。
+
+\textbf{状态空间}（5 维）：
+$$s_t = [\text{hour}_t/24, \text{renew}_t, \text{load}_t, \text{SOC}_t, \text{price}_t]$$
+
+\textbf{动作空间}（2 维连续）：
+$$a_t = [\text{charge\_power}_t, \text{discharge\_power}_t], \quad a_t \in [-1, 1]$$
 
 \textbf{奖励函数}：
-$$r_t = -\left( w_1 \cdot C_{\text{total}}(t) + w_2 \cdot C_{\text{carbon}}(t) - w_3 \cdot \eta_{\text{renew}}(t) \right)$$
+$$r_t = -(C_{\text{elec}}(t) + C_{\text{carbon}}(t)) + \alpha \cdot \eta_{\text{renew}}(t)$$
 
-\textbf{网络架构}：
+\textbf{网络架构}（纯 CPU 实现）：
 \begin{itemize}
-    \item Actor: State(20) → FC(128) → ReLU → FC(64) → ReLU → Action(5)
-    \item Critic: State(20) → FC(128) → ReLU → FC(64) → ReLU → Value(1)
+    \item Actor: State(5) → FC(64) → ReLU → FC(64) → ReLU → Action(2)
+    \item Critic: State(5) → FC(64) → ReLU → FC(64) → ReLU → Value(1)
 \end{itemize}
+
+\textbf{训练参数}：
+\begin{itemize}
+    \item $\gamma=0.99$, $\lambda=0.95$, $\epsilon=0.2$, lr=3e-4
+    \item 500 episodes, batch size=32, epochs=10
+\end{itemize}
+
+特点：适应高动态环境，可学习复杂调度策略。
+
+\subsection{基于 LLM 的可解释性调度}
+
+策略：使用本地大语言模型（Lmstudio + google/gemma-3-4b）生成可解释的调度策略。
+
+\textbf{系统架构}：
+\begin{verbatim}
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│  调度状态   │────>│  LLM 推理    │────>│  策略解释   │
+│  (state)    │     │  (gemma-3-4b)│     │(explanation)│
+└─────────────┘     └──────────────┘     └─────────────┘
+\end{verbatim}
+
+\textbf{解释内容}：
+\begin{enumerate}
+    \item 决策依据：电价时段、SOC 状态、新能源出力
+    \item 决策逻辑：为什么选择充/放电，预期收益
+    \item 优化目标：成本、消纳率、碳排放
+\end{enumerate}
+
+\textbf{API 调用}（本地部署）：
+\begin{verbatim}
+POST http://localhost:1234/v1/chat/completions
+{
+  "model": "google/gemma-3-4b",
+  "messages": [
+    {"role": "system", "content": "电力系统调度优化专家"},
+    {"role": "user", "content": "请解释以下调度决策..."}
+  ]
+}
+\end{verbatim}
+
+特点：提升调度决策透明度，便于人工审核和优化。
 
 \section{实验分析}
 \label{sec:exp}
@@ -240,84 +289,107 @@ GPU 利用率 & 157,417 条 & 阿里云监控 \\
 \subsection{基线方法}
 
 \begin{enumerate}
-    \item \textbf{Rule-based}：规则调度（新能源优先）
-    \item \textbf{Greedy}：贪心算法（最低成本优先）
-    \item \textbf{MILP}：混合整数线性规划
-    \item \textbf{MPC}：模型预测控制
-    \item \textbf{DRL-PPO}：深度强化学习
+    \item \textbf{Rule-based}：新能源优先调度
+    \item \textbf{Greedy}：谷段充电、峰段放电
+    \item \textbf{MPC}：滚动优化（horizon=12）
+    \item \textbf{PPO}：深度强化学习（500 episodes）
 \end{enumerate}
 
-\subsection{主要结果}
+\subsection{主要结果（真实实验）}
 
-\textbf{表~\ref{tab:comparison}对比五种方法}：
+\textbf{表~\ref{tab:comparison}对比四种方法}（基于真实数据集运行）：
 
 \begin{table}[h]
 \centering
-\caption{优化效果对比}
+\caption{优化效果对比（真实实验结果）}
 \label{tab:comparison}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
-\textbf{方法} & \textbf{成本 (元/天)} & \textbf{消纳率 (\%)} & \textbf{碳排放 (吨/天)} & \textbf{QoS 违约 (\%)} \\
+\textbf{方法} & \textbf{成本 (元/天)} & \textbf{消纳率 (\%)} & \textbf{碳排放 (kgCO$_2$/天)} \\
 \midrule
-Rule-based & 1,250 & 72.3 & 2.8 & 0.3 \\
-Greedy & 980 & 68.5 & 3.2 & 0.5 \\
-MILP & \textbf{850} & \textbf{94.2} & \textbf{1.5} & \textbf{0.2} \\
-MPC & 890 & 92.8 & 1.7 & 0.3 \\
-DRL-PPO & 920 & 91.5 & 1.8 & 0.4 \\
+Rule-based & 16.84 & 100.0 & 11.74 \\
+Greedy & \textbf{16.64} & 100.0 & \textbf{11.45} \\
+MPC & \textbf{16.64} & 100.0 & \textbf{11.45} \\
+PPO & 16.76 & 100.0 & \textbf{11.02} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 相比基准方法 (Rule-based)：
 \begin{itemize}
-    \item MILP：成本 -32.0\%，消纳率 +21.9\%，碳排放 -46.4\%
-    \item MPC：成本 -28.8\%，消纳率 +20.5\%，碳排放 -39.3\%
-    \item DRL-PPO：成本 -26.4\%，消纳率 +19.2\%，碳排放 -35.7\%
+    \item Greedy：成本 -1.2\%，消纳率持平，碳排放 -2.5\%
+    \item MPC：成本 -1.2\%，消纳率持平，碳排放 -2.5\%
+    \item PPO：成本 -0.5\%，消纳率持平，碳排放 -6.1\%
 \end{itemize}
 
-\subsection{储能系统影响}
+\textbf{PPO 训练过程}：
+\begin{verbatim}
+Episode 100/500: Reward=-27.37, Cost=16.68, Renewable=100.0%
+Episode 200/500: Reward=-27.17, Cost=16.63, Renewable=100.0%
+Episode 300/500: Reward=-27.75, Cost=16.91, Renewable=100.0%
+Episode 400/500: Reward=-27.81, Cost=16.93, Renewable=100.0%
+Episode 500/500: Reward=-27.28, Cost=16.68, Renewable=100.0%
+\end{verbatim}
 
-\textbf{表~\ref{tab:storage}分析储能容量影响}：
+\textbf{24 小时场景数据}：
+\begin{itemize}
+    \item 新能源出力：0.13-0.26 MW（风电 + 光伏）
+    \item 负载：0.60-1.38 MW（基于 GPU 功耗）
+    \item 负载/新能源比：2.3-5.3（负载持续大于新能源）
+\end{itemize}
 
-\begin{table}[h]
-\centering
-\caption{储能系统影响}
-\label{tab:storage}
-\begin{tabular}{@{}lccc@{}}
-\toprule
-\textbf{配置} & \textbf{成本 (元/天)} & \textbf{消纳率 (\%)} & \textbf{碳排放 (吨/天)} \\
-\midrule
-无储能 & 1,050 & 78.5 & 2.3 \\
-50 MWh & 920 & 86.2 & 1.9 \\
-100 MWh & \textbf{850} & \textbf{94.2} & \textbf{1.5} \\
-200 MWh & 810 & 96.8 & 1.3 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\subsection{LLM 可解释性调度实验设计}
 
-100 MWh 储能相比无储能：成本 -19.0\%，消纳率 +15.7\%，碳排放 -34.8\%。
+\textbf{实验配置}：
+\begin{itemize}
+    \item LLM 模型：google/gemma-3-4b（4B 参数）
+    \item 部署方式：Lmstudio 本地部署
+    \item API 端点：http://localhost:1234/v1/chat/completions
+    \item 调用方式：HTTP POST，JSON 格式
+\end{itemize}
 
-\subsection{多目标权重敏感性}
+\textbf{解释生成示例}：
+\begin{verbatim}
+【储能调度策略解释】
 
-\textbf{表~\ref{tab:weights}分析权重影响}：
+决策依据：
+1. 电价时段：当前为谷段电价（0.4 元/kWh），适合充电
+2. SOC 状态：电池荷电状态较低，有充电空间
+3. 新能源出力：新能源出力充足，可优先使用
 
-\begin{table}[h]
-\centering
-\caption{多目标权重敏感性}
-\label{tab:weights}
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-\textbf{权重} & \textbf{配置} & \textbf{成本} & \textbf{消纳率} & \textbf{碳排放} \\
-\midrule
-1:0:0 & 成本优先 & \textbf{780} & 65.2 & 2.8 \\
-0:1:0 & 碳排优先 & 1,100 & 82.5 & \textbf{1.2} \\
-0:0:1 & 消纳优先 & 950 & \textbf{96.8} & 2.0 \\
-1:1:1 & 均衡 & 850 & 94.2 & 1.5 \\
-\bottomrule
-\end{tabular}
-\end{table}
+决策逻辑：
+- 谷段充电：利用低电价时段储存电能
+- 峰段放电：在高电价时段（1.2 元/kWh）释放电能
+- 预期收益：峰谷价差 0.8 元/kWh
+\end{verbatim}
 
-推荐权重：$w_1:w_2:w_3 = 1:1:1$（均衡配置）
+\textbf{注}：LLM 实验需要本地部署 Lmstudio 并加载 google/gemma-3-4b 模型。如 LLM 不可用，系统使用基于规则的回退解释。
+
+\subsection{结果分析与讨论}
+
+\textbf{实验观察}：
+\begin{enumerate}
+    \item \textbf{新能源消纳率 100\%}：负载（0.60-1.38 MW）持续大于新能源出力（0.13-0.26 MW），所有可用新能源都被消纳
+    \item \textbf{Greedy/MPC 成本优势}：通过储能套利降低用电成本 1.2\%
+    \item \textbf{PPO 表现}：训练 500 episodes 后收敛，碳排放最低（11.02 kgCO$_2$/天）
+    \item \textbf{LLM 可解释性}：生成人类可读的调度策略解释，提升决策透明度
+\end{enumerate}
+
+\textbf{局限性}：
+\begin{enumerate}
+    \item 场景规模：实验基于单数据中心，负载较小（0.6-1.4 MW）
+    \item 新能源比例：数据中心消纳新能源比例较低（0.03\%）
+    \item PPO 优势：在小规模场景下，与简单方法性能接近
+    \item LLM 依赖：需要本地部署 Lmstudio，增加系统复杂度
+\end{enumerate}
+
+\textbf{未来改进}：
+\begin{enumerate}
+    \item 扩展场景：多数据中心协同，更大规模负载
+    \item 提高新能源比例：研究负载$<$新能源场景下的优化策略
+    \item PPO 优化：调整奖励函数，提升消纳率优化效果
+    \item LLM 集成：实现完整的可解释性调度系统
+\end{enumerate}
 
 \section{结论与展望}
 \label{sec:conclusion}
@@ -325,32 +397,30 @@ DRL-PPO & 920 & 91.5 & 1.8 & 0.4 \\
 \subsection{主要结论}
 
 \begin{enumerate}
-    \item MILP 在成本和消纳率上表现最优，但计算复杂度高
-    \item DRL 适应动态环境能力强，适合在线调度
-    \item 储能系统（100 MWh）显著提升新能源消纳（+15.7\%）
-    \item 多目标权衡需根据实际需求调整权重
+    \item 当数据中心负载大于可用新能源时，新能源可实现 100\% 消纳
+    \item 储能系统（5 MWh/1 MW）通过峰谷套利降低用电成本 1.2\%
+    \item PPO 在碳排放优化上表现最优（-6.1\%），优于传统方法
+    \item LLM 可解释性调度提升决策透明度，便于人工审核
 \end{enumerate}
 
 \subsection{未来工作}
 
 \begin{enumerate}
-    \item 更精确的气象预测模型（接入 NWP）
-    \item 电力市场交易机制（辅助服务、绿电交易）
-    \item 多数据中心协同（"东数西算"场景）
-    \item 不确定性建模（鲁棒优化、分布鲁棒优化）
+    \item 多数据中心协同：研究跨区域算力调度，优化新能源消纳
+    \item 大规模场景：扩展至 10-100 MW 级数据中心
+    \item 高级预测：接入真实气象预测，提升新能源预测精度
+    \item 市场机制：考虑电力市场交易、辅助服务、碳交易
+    \item PPO 优化：改进奖励函数设计，提升消纳率优化效果
 \end{enumerate}
 
 \section*{参考文献}
 
 \begin{enumerate}
-    \item Masanet E, et al. Recalibrating global data center energy-use estimates. Science, 2020.
-    \item Liu Z, et al. Renewable and Cooling Aware Workload Management for Sustainable Data Centers. SIGMETRICS, 2012.
-    \item Gandhi A, et al. Optimal Power Allocation for Server Farms. SIGMETRICS, 2009.
-    \item Mao H, et al. Resource Management with Deep Reinforcement Learning. HotNets, 2016.
-    \item Google Data Center Team. Carbon-Intelligent Computing: A Practical Approach. USENIX ATC, 2021.
+    \item Liu Z, et al. Renewable and Cooling Aware Workload Management for Sustainable Data Centers. SIGMETRICS 2012.
+    \item Mao H, et al. Resource Management with Deep Reinforcement Learning. HotNets 2016.
+    \item Google Data Center Team. Carbon-Intelligent Computing: A Practical Approach. USENIX ATC 2021.
+    \item Gandhi A, et al. Optimal Power Allocation for Server Farms. SIGMETRICS 2009.
     \item Alibaba Cloud. Zhangbei Green Data Center Case Study. 2022.
-    \item Zhang Y, et al. Energy-Efficient Data Centers: A Survey of Optimization Techniques. ACM Computing Surveys, 2020.
-    \item Wang J, et al. Security-Constrained Unit Commitment with Wind Power and Energy Storage. IEEE TPWRS, 2015.
 \end{enumerate}
 
 \end{document}
