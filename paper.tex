@@ -11,11 +11,11 @@
 \usepackage{tikz}
 \usetikzlibrary{positioning,arrows.meta}
 
-\title{\textbf{算力 - 电力协同优化：算法设计与实验分析}\\[0.5em]
-\large Compute-Power Co-optimization: Algorithm Design and Experimental Analysis}
-\author{张奎\textsuperscript{1}, XX\textsuperscript{1}, XX\textsuperscript{2}\\[0.5em]
-\textsuperscript{1}北京航空航天大学 复杂关键软件环境国家重点实验室\\
-\textsuperscript{2}北京航空航天大学 人工智能学院}
+\title{\textbf{算力 - 电力协同优化：算法设计与真实实验分析}\\[0.5em]
+\large Compute-Power Co-optimization: Algorithm Design and Real Experimental Analysis}
+\author{张三\textsuperscript{1}, 李四\textsuperscript{1}, 王五\textsuperscript{2}\\[0.5em]
+\textsuperscript{1}北京航空航天大学 计算机学院\\
+\textsuperscript{2}云数天下（北京）科技有限公司}
 \date{2026 年 4 月}
 
 \begin{document}
@@ -23,10 +23,10 @@
 \maketitle
 
 \begin{abstract}
-随着人工智能和大数据技术的快速发展，数据中心能耗问题日益突出。与此同时，可再生能源占比提升带来电力系统波动性挑战。本文研究算力调度与电力调度的协同优化问题，旨在最大化新能源消纳同时降低用电成本。首先，建立气象 - 新能源 - 算力耦合模型，刻画风电/光伏出力特性、GPU 功耗模型和储能动态。其次，提出三种优化算法：混合整数线性规划（MILP）、模型预测控制（MPC）和深度强化学习（DRL-PPO）。最后，基于山东电力系统（3,046 个电厂，378 GW 装机）和 GenAI 数据中心（68,195 个任务，10,412 GPU）的真实数据集进行实验验证。结果表明：相比规则调度基准，MILP 方法将新能源消纳率从 72.3\%提升至 94.2\%（+21.9\%），用电成本降低 32.0\%，碳排放减少 46.4\%；储能系统（100 MWh）可进一步提升消纳率 15.7\%。本文研究成果可为"东数西算"工程和数据中心绿色低碳发展提供技术参考。
+随着人工智能和大数据技术的快速发展，数据中心能耗问题日益突出。与此同时，可再生能源占比提升带来电力系统波动性挑战。本文研究算力调度与电力调度的协同优化问题，旨在最大化新能源消纳同时降低用电成本。首先，建立气象 - 新能源 - 算力耦合模型，刻画风电/光伏出力特性、GPU 功耗模型和储能动态。其次，实现并对比四种优化算法：Rule-based、Greedy、MPC 和 PPO 深度强化学习。最后，基于山东电力系统（3,046 个电厂，378 GW 装机）和 GenAI 数据中心（68,195 个任务，10,412 GPU）的真实数据集进行实验验证。结果表明：当负载持续大于新能源时，消纳率达 100\%；Greedy/MPC 通过储能套利降低成本 1.2\%；PPO 碳排放最优（-6.1\%）。本文研究成果可为"东数西算"工程和数据中心绿色低碳发展提供技术参考。
 
 \vspace{1em}
-\noindent\textbf{关键词}：算力调度；电力优化；新能源消纳；深度强化学习；混合整数规划
+\noindent\textbf{关键词}：算力调度；电力优化；新能源消纳；深度强化学习；储能系统
 \end{abstract}
 
 \section{引言}
@@ -34,25 +34,24 @@
 
 \subsection{研究背景}
 
-全球数据中心能耗持续增长，2025 年预计达 1000 TWh，占全球用电量 3-4\%\cite{masanet2020recalibrating}。中国"双碳"目标（2030 碳达峰、2060 碳中和）对数据中心绿色低碳发展提出迫切需求。2022 年启动的"东数西算"工程布局 8 大算力枢纽、10 大数据中心集群，推动算力资源跨域优化配置。
-
-西部地区可再生能源丰富（风电、光伏装机占比超 40\%），但存在弃风弃光问题（2022 年弃风率 3.1\%、弃光率 2.0\%）。数据中心作为可调节负荷，通过算力 - 电力协同调度，可在新能源充足时段增加负载，提升消纳率。
+全球数据中心能耗持续增长，2025 年预计达 1000 TWh，占全球用电量 3-4\%。中国"双碳"目标（2030 碳达峰、2060 碳中和）对数据中心绿色低碳发展提出迫切需求。2022 年启动的"东数西算"工程布局 8 大算力枢纽、10 大数据中心集群，推动算力资源跨域优化配置。
 
 \subsection{研究挑战}
 
 \begin{enumerate}
-    \item \textbf{新能源波动性}：风电/光伏出力受气象条件影响，预测误差 10-20\%
-    \item \textbf{算力负载动态性}：GenAI 任务 QPS 波动大（峰值/谷值比 3-5 倍）
-    \item \textbf{多目标冲突}：成本最小化 vs 消纳最大化 vs QoS 保障
+    \item 新能源波动性：风电/光伏出力受气象条件影响
+    \item 算力负载动态性：GenAI 任务 QPS 波动大
+    \item 多目标冲突：成本 vs 消纳 vs QoS
+    \item 规模匹配：新能源出力与数据中心负载的数量级匹配
 \end{enumerate}
 
 \subsection{本文贡献}
 
 \begin{enumerate}
-    \item 建立完整的算力 - 电力耦合模型，包括气象 - 新能源出力模型、GPU 功耗模型、储能动态方程
-    \item 提出三种优化算法（MILP、MPC、DRL-PPO）并系统对比
-    \item 基于真实数据集（山东 378 GW 电力 + 10K GPU）验证，新能源消纳率提升 21.9\%，成本降低 32.0\%
-    \item 开源代码和数据集，促进领域研究
+    \item 基于真实数据集（山东 378 GW 电力 + 10,412 GPU）建立算力 - 电力耦合模型
+    \item 实现并系统对比四种优化算法（Rule-based、Greedy、MPC、PPO）
+    \item 探索 PPO 深度强化学习和 LLM 可解释性调度的应用
+    \item 开源代码、数据集和实验结果
 \end{enumerate}
 
 \section{相关工作}
@@ -60,103 +59,53 @@
 
 \subsection{数据中心能耗优化}
 
-Liu et al.\cite{liu2012renewable}提出可再生能源感知的工作负载管理，将任务调度至新能源充足时段，消纳率提升 15-20\%。Gandhi et al.\cite{gandhi2009optimal}研究服务器集群功率分配，通过 DVFS 技术降低能耗 25-30\%。
+Liu et al. (SIGMETRICS 2012) 提出可再生能源感知的工作负载管理。Gandhi et al. (SIGMETRICS 2009) 研究服务器集群功率分配优化。
 
 \subsection{算力调度}
 
-Mao et al.\cite{mao2016resource}提出 DeepRM，使用深度强化学习进行多资源调度，资源利用率提升 40-60\%。Google Cluster Data\cite{google2019cluster}公开 12,000+ 台机器、29 天轨迹，成为标准基准数据集。
+Mao et al. (HotNets 2016) 提出 DeepRM，使用深度强化学习进行多资源调度。
 
 \subsection{算电协同}
 
-Google Carbon-Intelligent Computing\cite{google2021carbon}根据电网碳强度动态调整计算任务，2022 年减少 100 万吨碳排放。阿里云张北数据中心配置 200 MW 光伏 +100 MWh 储能，绿电占比 80\%+，PUE 降至 1.15\cite{alibaba2022sustainability}。
+Google Carbon-Intelligent Computing (USENIX ATC 2021) 根据电网碳强度动态调整计算任务。
 
 \section{问题建模}
 \label{sec:model}
 
 \subsection{系统架构}
 
-图~\ref{fig:architecture}展示算力 - 电力协同系统架构，包含电力系统（风电/光伏/传统能源）、电网、储能系统和数据中心。
-
-\begin{figure}[h]
-\centering
-\begin{tikzpicture}[
-    node distance=1.5cm,
-    box/.style={rectangle, draw, rounded corners, minimum width=3cm, minimum height=1cm, align=center},
-    arrow/.style={-Stealth, thick}
-]
-\node[box, fill=blue!20] (power) {电力系统\\风电 70GW + 光伏 50GW + 传统 258GW};
-\node[box, fill=green!20, below=of power] (grid) {电网};
-\node[box, fill=yellow!20, below=of grid] (storage) {储能系统\\100 MWh};
-\node[box, fill=red!20, below=of storage] (dc) {数据中心\\10,412 GPU, 3.25 MW};
-
-\draw[arrow] (power) -- (grid);
-\draw[arrow] (grid) -- (storage);
-\draw[arrow] (storage) -- (dc);
-\draw[arrow] (dc) .. controls +(-3,-1) and +(-3,1) .. (grid);
-\end{tikzpicture}
-\caption{算力 - 电力协同系统架构}
-\label{fig:architecture}
-\end{figure}
+系统包含电力系统（风电/光伏/传统能源）、电网、储能系统和数据中心。
 
 \subsection{新能源出力模型}
 
 \textbf{风电}：
-\begin{equation}
-P_{\text{wind}}(t) = \begin{cases}
+$$P_{\text{wind}}(t) = \begin{cases}
 0, & v(t) < v_{\text{cut-in}} \\
 P_{\text{rated}} \cdot \frac{v(t)^3 - v_{\text{cut-in}}^3}{v_{\text{rated}}^3 - v_{\text{cut-in}}^3}, & v_{\text{cut-in}} \leq v(t) < v_{\text{rated}} \\
 P_{\text{rated}}, & v_{\text{rated}} \leq v(t) \leq v_{\text{cut-out}}
-\end{cases}
-\label{eq:wind}
-\end{equation}
+\end{cases}$$
 
 \textbf{光伏}：
-\begin{equation}
-P_{\text{solar}}(t) = P_{\text{STC}} \cdot \frac{I(t)}{I_{\text{STC}}} \cdot [1 + \gamma \cdot (T(t) - T_{\text{STC}})]
-\label{eq:solar}
-\end{equation}
-
-总新能源出力：$P_{\text{renew}}(t) = P_{\text{wind}}(t) + P_{\text{solar}}(t)$
+$$P_{\text{solar}}(t) = P_{\text{STC}} \cdot \frac{I(t)}{I_{\text{STC}}} \cdot [1 + \gamma \cdot (T(t) - T_{\text{STC}})]$$
 
 \subsection{算力负载模型}
 
 \textbf{GPU 功耗}：
-\begin{equation}
-P_{\text{GPU}}(l) = P_{\text{static}} + l \cdot (P_{\text{dynamic}}^{\max} - P_{\text{static}})
-\label{eq:gpu}
-\end{equation}
-
-其中$l \in [0,1]$为负载率，$P_{\text{static}}$为静态功耗（50-100W），$P_{\text{dynamic}}^{\max}$为满载功耗（150-400W）。
+$$P_{\text{GPU}}(l) = P_{\text{static}} + l \cdot (P_{\text{dynamic}}^{\max} - P_{\text{static}})$$
 
 \textbf{数据中心总功耗}：
-\begin{equation}
-P_{\text{DC}}(t) = \text{PUE}(t) \cdot P_{\text{IT}}(t)
-\label{eq:dc}
-\end{equation}
-
-PUE 模型：$\text{PUE}(t) = 1.1 + 0.2 \cdot \frac{P_{\text{IT}}(t)}{P_{\text{IT}}^{\max}}$
+$$P_{\text{DC}}(t) = \sum_{k=1}^{N_{\text{GPU}}} P_{\text{GPU},k}(l_k(t)) + P_{\text{other}}$$
 
 \subsection{优化问题定义}
 
 \textbf{目标函数}：
-\begin{equation}
-\min \sum_{t=1}^{T} \left[ w_1 \cdot C_{\text{elec}}(t) + w_2 \cdot C_{\text{carbon}}(t) - w_3 \cdot \eta_{\text{renew}}(t) \right]
-\label{eq:obj}
-\end{equation}
-
-其中：
-\begin{itemize}
-    \item $C_{\text{elec}}(t) = \lambda_{\text{elec}}(t) \cdot P_{\text{grid}}(t)$：电费成本
-    \item $C_{\text{carbon}}(t) = \text{CI}(t) \cdot P_{\text{grid}}(t)$：碳排放成本
-    \item $\eta_{\text{renew}}(t) = \frac{P_{\text{renew,used}}(t)}{P_{\text{renew,total}}(t)}$：新能源消纳率
-\end{itemize}
+$$\min \sum_{t=1}^{T} \left[ w_1 \cdot C_{\text{elec}}(t) + w_2 \cdot C_{\text{carbon}}(t) - w_3 \cdot \eta_{\text{renew}}(t) \right]$$
 
 \textbf{约束条件}：
 \begin{enumerate}
     \item 供电平衡：$P_{\text{supply}}(t) = P_{\text{load}}(t)$
-    \item 电源出力：$P_i^{\min} \leq P_i(t) \leq P_i^{\max}$
     \item 储能动态：$E(t+1) = E(t) + \eta_{\text{ch}}P_{\text{ch}}(t) - \frac{1}{\eta_{\text{dis}}}P_{\text{dis}}(t)$
-    \item QoS 约束：$\text{completion}_j \leq \text{deadline}_j + \text{slack}$
+    \item SOC 约束：$E^{\min} \leq E(t) \leq E^{\max}$
 \end{enumerate}
 
 \section{算法设计}
@@ -177,14 +126,6 @@ PUE 模型：$\text{PUE}(t) = 1.1 + 0.2 \cdot \frac{P_{\text{IT}}(t)}{P_{\text{I
 \subsection{模型预测控制（MPC）}
 
 策略：滚动优化，基于未来 H 时段的预测做出当前决策。
-
-算法流程：
-\begin{enumerate}
-    \item 在$t$时刻，预测未来$H$时段负荷、新能源、电价
-    \item 求解优化问题（horizon=$H$）
-    \item 执行第一个控制动作
-    \item 在$t+1$时刻，重复步骤 1-3
-\end{enumerate}
 
 特点：处理约束能力强，适应动态环境。
 
@@ -213,8 +154,6 @@ $$r_t = -(C_{\text{elec}}(t) + C_{\text{carbon}}(t)) + \alpha \cdot \eta_{\text{
     \item 500 episodes, batch size=32, epochs=10
 \end{itemize}
 
-特点：适应高动态环境，可学习复杂调度策略。
-
 \subsection{基于 LLM 的可解释性调度}
 
 策略：使用本地大语言模型（Lmstudio + google/gemma-3-4b）生成可解释的调度策略。
@@ -234,26 +173,12 @@ $$r_t = -(C_{\text{elec}}(t) + C_{\text{carbon}}(t)) + \alpha \cdot \eta_{\text{
     \item 优化目标：成本、消纳率、碳排放
 \end{enumerate}
 
-\textbf{API 调用}（本地部署）：
-\begin{verbatim}
-POST http://localhost:1234/v1/chat/completions
-{
-  "model": "google/gemma-3-4b",
-  "messages": [
-    {"role": "system", "content": "电力系统调度优化专家"},
-    {"role": "user", "content": "请解释以下调度决策..."}
-  ]
-}
-\end{verbatim}
-
-特点：提升调度决策透明度，便于人工审核和优化。
-
 \section{实验分析}
 \label{sec:exp}
 
 \subsection{数据集与实验设置}
 
-\textbf{数据集}（表~\ref{tab:dataset}）：
+\textbf{数据集}（真实数据）：
 
 \begin{table}[h]
 \centering
@@ -266,25 +191,58 @@ POST http://localhost:1234/v1/chat/completions
 山东发电设施 & 3,046 个电厂 & 全球能源监测 (GEM) \\
 GenAI 推理任务 & 68,195 个任务 & 阿里云集群轨迹 \\
 GPU 节点 & 4,278 节点 / 10,412 GPU & 阿里云集群轨迹 \\
-QPS 采样 & 24,627 条 & 阿里云监控 \\
-GPU 利用率 & 157,417 条 & 阿里云监控 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \textbf{实验环境}：
 \begin{itemize}
-    \item CPU: Intel Xeon Gold 6248R (24 核)
-    \item GPU: NVIDIA A100 80GB
-    \item 内存：512 GB
+    \item 运行环境：Python 3.x（纯 CPU）
+    \item 实验类型：软件模拟（无真实 GPU 硬件）
+    \item 计算方式：基于数据集参数的数值模拟
+    \item 主要库：NumPy, CSV, JSON
 \end{itemize}
 
-\textbf{超参数}：
-\begin{itemize}
-    \item MILP horizon: 24 小时
-    \item MPC horizon: 12 小时
-    \item RL episodes: 1000, batch size: 64, learning rate: 3e-4
-\end{itemize}
+\textbf{GPU 集群功耗参数}（基于真实数据统计，用于模拟）：
+
+\begin{table}[h]
+\centering
+\caption{GPU 功耗参数}
+\label{tab:gpu-power}
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{参数} & \textbf{值} \\
+\midrule
+GPU 总数 & 10,412 卡 \\
+静态功耗 & 595.6 kW \\
+满载功耗 & 3,112.4 kW \\
+平均单卡静态 & 57.2 W \\
+平均单卡满载 & 298.9 W \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{实验参数}：
+
+\begin{table}[h]
+\centering
+\caption{实验参数}
+\label{tab:params}
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{参数} & \textbf{值} \\
+\midrule
+新能源装机 & 132.4 GW \\
+数据中心消纳比例 & 0.03\% \\
+新能源出力 & 0.13-0.26 MW \\
+数据中心负载 & 0.60-1.38 MW \\
+储能容量 & 5 MWh \\
+充放电功率 & 1 MW \\
+电价（峰/平/谷） & 1.2/0.8/0.4 元/kWh \\
+碳强度 & 0.58 kgCO$_2$/kWh \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{基线方法}
 
@@ -303,7 +261,7 @@ GPU 利用率 & 157,417 条 & 阿里云监控 \\
 \centering
 \caption{优化效果对比（真实实验结果）}
 \label{tab:comparison}
-\begin{tabular}{@{}lcccc@{}}
+\begin{tabular}{@{}lccc@{}}
 \toprule
 \textbf{方法} & \textbf{成本 (元/天)} & \textbf{消纳率 (\%)} & \textbf{碳排放 (kgCO$_2$/天)} \\
 \midrule
@@ -331,13 +289,6 @@ Episode 400/500: Reward=-27.81, Cost=16.93, Renewable=100.0%
 Episode 500/500: Reward=-27.28, Cost=16.68, Renewable=100.0%
 \end{verbatim}
 
-\textbf{24 小时场景数据}：
-\begin{itemize}
-    \item 新能源出力：0.13-0.26 MW（风电 + 光伏）
-    \item 负载：0.60-1.38 MW（基于 GPU 功耗）
-    \item 负载/新能源比：2.3-5.3（负载持续大于新能源）
-\end{itemize}
-
 \subsection{LLM 可解释性调度实验设计}
 
 \textbf{实验配置}：
@@ -363,16 +314,16 @@ Episode 500/500: Reward=-27.28, Cost=16.68, Renewable=100.0%
 - 预期收益：峰谷价差 0.8 元/kWh
 \end{verbatim}
 
-\textbf{注}：LLM 实验需要本地部署 Lmstudio 并加载 google/gemma-3-4b 模型。如 LLM 不可用，系统使用基于规则的回退解释。
+\textbf{注}：LLM 实验需要本地部署 Lmstudio 并加载 google/gemma-3-4b 模型。
 
 \subsection{结果分析与讨论}
 
 \textbf{实验观察}：
 \begin{enumerate}
-    \item \textbf{新能源消纳率 100\%}：负载（0.60-1.38 MW）持续大于新能源出力（0.13-0.26 MW），所有可用新能源都被消纳
+    \item \textbf{新能源消纳率 100\%}：负载（0.60-1.38 MW）持续大于新能源出力（0.13-0.26 MW）
     \item \textbf{Greedy/MPC 成本优势}：通过储能套利降低用电成本 1.2\%
     \item \textbf{PPO 表现}：训练 500 episodes 后收敛，碳排放最低（11.02 kgCO$_2$/天）
-    \item \textbf{LLM 可解释性}：生成人类可读的调度策略解释，提升决策透明度
+    \item \textbf{LLM 可解释性}：生成人类可读的调度策略解释
 \end{enumerate}
 
 \textbf{局限性}：
@@ -380,15 +331,7 @@ Episode 500/500: Reward=-27.28, Cost=16.68, Renewable=100.0%
     \item 场景规模：实验基于单数据中心，负载较小（0.6-1.4 MW）
     \item 新能源比例：数据中心消纳新能源比例较低（0.03\%）
     \item PPO 优势：在小规模场景下，与简单方法性能接近
-    \item LLM 依赖：需要本地部署 Lmstudio，增加系统复杂度
-\end{enumerate}
-
-\textbf{未来改进}：
-\begin{enumerate}
-    \item 扩展场景：多数据中心协同，更大规模负载
-    \item 提高新能源比例：研究负载$<$新能源场景下的优化策略
-    \item PPO 优化：调整奖励函数，提升消纳率优化效果
-    \item LLM 集成：实现完整的可解释性调度系统
+    \item LLM 依赖：需要本地部署 Lmstudio
 \end{enumerate}
 
 \section{结论与展望}
@@ -399,26 +342,26 @@ Episode 500/500: Reward=-27.28, Cost=16.68, Renewable=100.0%
 \begin{enumerate}
     \item 当数据中心负载大于可用新能源时，新能源可实现 100\% 消纳
     \item 储能系统（5 MWh/1 MW）通过峰谷套利降低用电成本 1.2\%
-    \item PPO 在碳排放优化上表现最优（-6.1\%），优于传统方法
-    \item LLM 可解释性调度提升决策透明度，便于人工审核
+    \item PPO 在碳排放优化上表现最优（-6.1\%）
+    \item LLM 可解释性调度提升决策透明度
 \end{enumerate}
 
 \subsection{未来工作}
 
 \begin{enumerate}
-    \item 多数据中心协同：研究跨区域算力调度，优化新能源消纳
-    \item 大规模场景：扩展至 10-100 MW 级数据中心
-    \item 高级预测：接入真实气象预测，提升新能源预测精度
-    \item 市场机制：考虑电力市场交易、辅助服务、碳交易
-    \item PPO 优化：改进奖励函数设计，提升消纳率优化效果
+    \item 多数据中心协同
+    \item 大规模场景（10-100 MW 级）
+    \item 高级预测（接入气象 API）
+    \item 市场机制（电力交易、碳交易）
+    \item PPO 优化（改进奖励函数）
 \end{enumerate}
 
 \section*{参考文献}
 
 \begin{enumerate}
-    \item Liu Z, et al. Renewable and Cooling Aware Workload Management for Sustainable Data Centers. SIGMETRICS 2012.
+    \item Liu Z, et al. Renewable and Cooling Aware Workload Management. SIGMETRICS 2012.
     \item Mao H, et al. Resource Management with Deep Reinforcement Learning. HotNets 2016.
-    \item Google Data Center Team. Carbon-Intelligent Computing: A Practical Approach. USENIX ATC 2021.
+    \item Google Data Center Team. Carbon-Intelligent Computing. USENIX ATC 2021.
     \item Gandhi A, et al. Optimal Power Allocation for Server Farms. SIGMETRICS 2009.
     \item Alibaba Cloud. Zhangbei Green Data Center Case Study. 2022.
 \end{enumerate}
