@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-04-21T08:23:04.844382",
+  "config": {
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "clip_epsilon": 0.2,
+    "lr": 0.0005,
+    "epochs": 15,
+    "batch_size": 32,
+    "hidden_dim": 256,
+    "value_coef": 0.5,
+    "entropy_coef": 0.02
+  },
+  "training": {
+    "final_avg_cost": 146.5598295810293,
+    "final_avg_carbon": 76.50374018528963,
+    "final_avg_renewable": 57.59148229845957
+  },
+  "test": {
+    "cost": 125.49368110715436,
+    "carbon": 62.39455849762155,
+    "renewable_rate": 66.05598729060769
+  }
+}

@@ -2,7 +2,12 @@
 *.csv
 *.zip
 *.tar.gz
-data/
+data/dataset/
+data/*.pth
+
+# 实验结果（允许提交）
+data/*.json
+data/*.csv
 
 # 编译产物
 *.pdf
