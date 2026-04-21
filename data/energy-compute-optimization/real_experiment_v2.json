@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-04-21T08:42:14.269923",
+  "dataset": {
+    "renewable_capacity_mw": 132379.09999999998,
+    "nuclear_capacity_mw": 29471.0,
+    "conventional_capacity_mw": 216109.0,
+    "total_gpus": 10412,
+    "gpu_static_kw": 595.56,
+    "gpu_max_kw": 3112.4,
+    "gpu_power_params": {
+      "A100-SXM4-80GB": {
+        "static": 75,
+        "max": 400
+      },
+      "A10": {
+        "static": 30,
+        "max": 150
+      },
+      "H800": {
+        "static": 75,
+        "max": 400
+      },
+      "GPU-series-1": {
+        "static": 50,
+        "max": 250
+      },
+      "GPU-series-2": {
+        "static": 40,
+        "max": 200
+      },
+      "A800-SXM4-80GB": {
+        "static": 75,
+        "max": 400
+      }
+    }
+  },
+  "scenario": {
+    "renewable_range_mw": [
+      0.1317957249358563,
+      0.25684531773117275
+    ],
+    "load_range_mw": [
+      0.6362472302470532,
+      1.4574797465703138
+    ]
+  },
+  "results": {
+    "Rule-based": {
+      "cost": 16.841264059674003,
+      "renewable_rate": 100.0,
+      "carbon": 0.01174331833598856
+    },
+    "Greedy": {
+      "cost": 16.642364227954307,
+      "renewable_rate": 100.0,
+      "carbon": 0.011454913579994999
+    },
+    "MPC": {
+      "cost": 16.642364227954307,
+      "renewable_rate": 100.0,
+      "carbon": 0.011454913579994999
+    }
+  }
+}
