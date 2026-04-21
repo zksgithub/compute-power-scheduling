@@ -1,24 +1,24 @@
 {
-  "timestamp": "2026-04-21T08:23:04.844382",
+  "timestamp": "2026-04-21T09:55:11.683728",
   "config": {
+    "state_dim": 5,
+    "action_dim": 2,
+    "hidden_dim": 64,
+    "lr": 0.0003,
     "gamma": 0.99,
     "gae_lambda": 0.95,
     "clip_epsilon": 0.2,
-    "lr": 0.0005,
-    "epochs": 15,
-    "batch_size": 32,
-    "hidden_dim": 256,
-    "value_coef": 0.5,
-    "entropy_coef": 0.02
+    "epochs": 10,
+    "batch_size": 32
   },
   "training": {
-    "final_avg_cost": 146.5598295810293,
-    "final_avg_carbon": 76.50374018528963,
-    "final_avg_renewable": 57.59148229845957
+    "episodes": 500,
+    "final_avg_cost": 16.681193869418593,
+    "final_avg_renewable": 100.0
   },
   "test": {
-    "cost": 125.49368110715436,
-    "carbon": 62.39455849762155,
-    "renewable_rate": 66.05598729060769
+    "cost": 16.755681544273273,
+    "carbon": 11.023228465587714,
+    "renewable_rate": 100.0
   }
 }
